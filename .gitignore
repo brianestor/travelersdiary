@@ -17,6 +17,11 @@
 /.next/
 /out/
 
+# laravel
+/laravel-app/vendor
+/laravel-app/node_modules
+/laravel-app/storage/*.key
+
 # production
 /build
 
@@ -32,6 +37,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
