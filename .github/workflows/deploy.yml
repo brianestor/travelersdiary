@@ -171,47 +171,70 @@ jobs:
             --exclude='bootstrap/cache/*.php' \
             laravel-app/ "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${APP_DIR}/"
 
-      - name: Bootstrap .env if missing on server
+      - name: Sync .env configuration on server
         env:
           DB_PASSWORD: ${{ secrets.LARAVEL_DB_PASSWORD }}
           ADMIN_PASSWORD: ${{ secrets.LARAVEL_ADMIN_PASSWORD }}
         run: |
-          APP_KEY=$(php -r "echo 'base64:'.base64_encode(random_bytes(32));")
-          export APP_KEY
           php << 'PHP'
           <?php
-          $envContent = implode("\n", [
-              'APP_NAME="Travelers Diary"',
-              'APP_ENV=production',
-              'APP_KEY=' . getenv('APP_KEY'),
-              'APP_DEBUG=false',
-              'APP_URL=https://travelersdiarytours.com',
-              '',
-              'LOG_CHANNEL=stack',
-              'LOG_LEVEL=error',
-              '',
-              'DB_CONNECTION=mysql',
-              'DB_HOST=127.0.0.1',
-              'DB_PORT=3306',
-              'DB_DATABASE=u225713169_tdiary',
-              'DB_USERNAME=u225713169_tdiary',
-              'DB_PASSWORD=' . getenv('DB_PASSWORD'),
-              '',
-              'CACHE_DRIVER=file',
-              'FILESYSTEM_DISK=local',
-              'QUEUE_CONNECTION=sync',
-              'SESSION_DRIVER=file',
-              'SESSION_LIFETIME=120',
-              '',
-              'ADMIN_PASSWORD=' . getenv('ADMIN_PASSWORD'),
-              '',
-          ]);
-          file_put_contents(getenv('RUNNER_TEMP') . '/bootstrap.env', $envContent);
+          $data = [
+              'db_password' => trim((string) getenv('DB_PASSWORD')),
+              'admin_password' => trim((string) getenv('ADMIN_PASSWORD')),
+          ];
+          file_put_contents(getenv('RUNNER_TEMP') . '/env.json', json_encode($data));
           PHP
+          chmod 600 "$RUNNER_TEMP/env.json"
           SSH_CMD="ssh -i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }} -o StrictHostKeyChecking=accept-new"
+          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }} -o StrictHostKeyChecking=accept-new"
           APP_DIR="/home/${{ secrets.HOSTINGER_SSH_USER }}/domains/${DOMAIN}/laravel-app"
-          rsync -az --ignore-existing -e "$SSH_CMD" "$RUNNER_TEMP/bootstrap.env" "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${APP_DIR}/.env"
-          rm -f "$RUNNER_TEMP/bootstrap.env"
+          rsync -az -e "$SSH_CMD" "$RUNNER_TEMP/env.json" "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${APP_DIR}/.env.json"
+          rm -f "$RUNNER_TEMP/env.json"
+          ssh $SSH_OPTS "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}" "APP_DIR='${APP_DIR}' bash -s" << 'EOF'
+            set -e
+            cd "${APP_DIR}"
+            chmod 600 .env.json
+            PHP_BIN=$(command -v /opt/alt/php83/usr/bin/php || command -v php83 || command -v php)
+            "$PHP_BIN" -r '
+              $secrets = json_decode(file_get_contents(".env.json"), true);
+              @unlink(".env.json");
+              $appKey = "";
+              if (file_exists(".env") && preg_match("/^APP_KEY=(.+)$/m", file_get_contents(".env"), $m)) {
+                  $appKey = trim($m[1]);
+              }
+              if ($appKey === "") {
+                  $appKey = "base64:" . base64_encode(random_bytes(32));
+              }
+              $lines = [
+                  "APP_NAME=\"Travelers Diary\"",
+                  "APP_ENV=production",
+                  "APP_KEY=" . $appKey,
+                  "APP_DEBUG=false",
+                  "APP_URL=https://travelersdiarytours.com",
+                  "",
+                  "LOG_CHANNEL=stack",
+                  "LOG_LEVEL=error",
+                  "",
+                  "DB_CONNECTION=mysql",
+                  "DB_HOST=127.0.0.1",
+                  "DB_PORT=3306",
+                  "DB_DATABASE=u225713169_tdiary",
+                  "DB_USERNAME=u225713169_tdiary",
+                  "DB_PASSWORD=\"" . addcslashes((string) $secrets["db_password"], "\\\"$") . "\"",
+                  "",
+                  "CACHE_DRIVER=file",
+                  "FILESYSTEM_DISK=local",
+                  "QUEUE_CONNECTION=sync",
+                  "SESSION_DRIVER=file",
+                  "SESSION_LIFETIME=120",
+                  "",
+                  "ADMIN_PASSWORD=\"" . addcslashes((string) $secrets["admin_password"], "\\\"$") . "\"",
+                  "",
+              ];
+              file_put_contents(".env", implode("\n", $lines));
+              chmod(".env", 0600);
+            '
+          EOF
 
       - name: Sync public_html files
         run: |
