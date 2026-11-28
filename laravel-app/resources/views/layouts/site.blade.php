@@ -59,7 +59,11 @@
             },
         };
     </script>
-    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ filemtime(public_path('css/site.css')) }}">
+    @php
+        $cssPath = public_path('css/site.css');
+        $cssVersion = is_file($cssPath) ? filemtime($cssPath) : '2';
+    @endphp
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ $cssVersion }}">
 </head>
 <body class="flex min-h-full flex-col antialiased">
     <a href="#content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-gold focus:px-4 focus:py-2 focus:text-night">{{ __('Skip to content') }}</a>
