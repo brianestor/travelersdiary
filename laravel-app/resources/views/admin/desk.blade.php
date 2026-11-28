@@ -60,6 +60,55 @@
             @endif
         </div>
 
+        <h2 class="display mt-12 text-2xl text-gold">Safari plans</h2>
+        <div class="mt-4 space-y-4">
+            @if($plans->isEmpty())
+                <p class="rounded-3xl border border-dashed border-line px-5 py-8 text-sm text-mist">No safari plans yet.</p>
+            @else
+                @foreach($plans as $plan)
+                    <article class="rounded-3xl border border-line p-5">
+                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                            <h3 class="display text-xl text-gold">{{ $plan->reference }}</h3>
+                            <p class="text-sm capitalize text-pale">{{ $plan->status }}</p>
+                        </div>
+                        <p class="mt-1 text-sm text-mist">{{ \App\Support\Format::when($plan->created_at) }}</p>
+                        <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                            <div>
+                                <dt class="text-mist">Trip</dt>
+                                <dd>{{ $plan->safariLabel() }} · {{ $plan->duration_days }} {{ $plan->duration_days === 1 ? 'day' : 'days' }} · {{ $plan->stayLabel() }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-mist">Starts</dt>
+                                <dd>{{ \App\Support\Format::date($plan->start_date) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-mist">Party</dt>
+                                <dd>
+                                    {{ $plan->first_name }} {{ $plan->last_name }} · {{ $plan->adults }} {{ $plan->adults === 1 ? 'adult' : 'adults' }}
+                                    @if($plan->children > 0)
+                                        , {{ $plan->children }} {{ $plan->children === 1 ? 'child' : 'children' }}
+                                        ({{ collect($plan->child_ages)->join(', ') }})
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-mist">Contact</dt>
+                                <dd>
+                                    {{ $plan->email }}<br>
+                                    {{ $plan->country_code }} {{ $plan->phone }}<br>
+                                    Reply by {{ $plan->contact_method === 'whatsapp' ? 'WhatsApp' : 'email' }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-mist">Budget</dt>
+                                <dd>{{ \App\Support\Format::money($plan->budget) }} per person</dd>
+                            </div>
+                        </dl>
+                    </article>
+                @endforeach
+            @endif
+        </div>
+
         <h2 class="display mt-12 text-2xl text-gold">Seats</h2>
         <ul class="mt-4 divide-y divide-line rounded-3xl border border-line">
             @foreach($departures as $departure)

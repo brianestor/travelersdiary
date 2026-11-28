@@ -8,6 +8,8 @@ Route::get('/safaris', [SiteController::class, 'safaris'])->name('safaris');
 Route::get('/safaris/{slug}', [SiteController::class, 'safari'])->name('safari');
 Route::get('/diary', [SiteController::class, 'diary'])->name('diary');
 Route::get('/plan', [SiteController::class, 'plan'])->name('plan');
+Route::post('/plan', [SiteController::class, 'storePlan'])->name('plan.store');
+Route::get('/plan/confirmation/{ref}', [SiteController::class, 'planConfirmation'])->name('plan.confirmation');
 Route::get('/contact', [SiteController::class, 'contact'])->name('contact');
 Route::post('/contact', [SiteController::class, 'storeMessage'])->name('contact.store');
 Route::get('/book', [SiteController::class, 'book'])->name('book');

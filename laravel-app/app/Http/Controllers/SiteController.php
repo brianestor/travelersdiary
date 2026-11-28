@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Departure;
 use App\Models\DiaryEntry;
+use App\Models\PlanRequest;
 use App\Models\Tour;
 use App\Services\ReservationException;
 use App\Services\Reservations;
@@ -52,16 +53,32 @@ class SiteController extends Controller
         ]);
     }
 
-    public function plan(Request $request)
+    public function plan()
     {
-        $tours = Tour::with('departures')->orderBy('id')->get();
-        $selected = $tours->firstWhere('slug', $request->query('safari')) ?? $tours->first();
-
         return view('plan', [
             'title' => 'Plan a safari',
-            'description' => 'Choose a safari, a departure, and a party size. The desk confirms the reservation.',
-            'tours' => $tours,
-            'selected' => $selected,
+            'description' => 'Plan a safari one step at a time. The desk confirms the request. Nothing is charged.',
+        ]);
+    }
+
+    public function storePlan(Request $request, Reservations $reservations)
+    {
+        try {
+            $plan = $reservations->plan($request->all());
+        } catch (ReservationException $error) {
+            return back()->withInput()->with('form_error', $error->getMessage());
+        }
+
+        return redirect()->route('plan.confirmation', $plan->reference);
+    }
+
+    public function planConfirmation(string $ref)
+    {
+        $plan = PlanRequest::where('reference', $ref)->firstOrFail();
+
+        return view('plan-confirmation', [
+            'title' => 'Safari plan requested',
+            'plan' => $plan,
         ]);
     }
 
@@ -142,12 +159,14 @@ class SiteController extends Controller
         }
 
         $bookings = Booking::with(['tour', 'departure'])->latest()->get();
+        $plans = PlanRequest::latest()->get();
         $departures = Departure::with('tour')->orderBy('start_date')->get();
 
         return view('admin.desk', [
             'title' => 'Desk',
             'robots' => 'noindex, nofollow',
             'bookings' => $bookings,
+            'plans' => $plans,
             'departures' => $departures,
         ]);
     }

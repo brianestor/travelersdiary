@@ -40,9 +40,5 @@
                 <a href="{{ route('safari', 'serengeti-migration') }}" class="mt-5 inline-flex text-sm text-gold hover:underline">The Serengeti route</a>
             </x-split>
         </div>
-
-        <div class="flex justify-center">
-            @include('partials.frame', ['item' => $media['drive']])
-        </div>
     </div>
 @endsection

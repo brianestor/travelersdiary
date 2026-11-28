@@ -379,6 +379,27 @@ body {
   }
 }
 
+.wizard-choice {
+  border: 1px solid rgb(22 22 22 / 0.25);
+  background: transparent;
+  color: inherit;
+}
+
+.wizard-choice:has(:checked) {
+  border-color: #161616;
+  background: #161616;
+  color: #f0e2b8;
+}
+
+.wizard-range {
+  accent-color: #161616;
+  width: 100%;
+}
+
+.wizard-step[hidden] {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .split-media-khaki .split-media-copy {
     background: linear-gradient(
