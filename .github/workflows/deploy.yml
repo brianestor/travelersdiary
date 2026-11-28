@@ -1,0 +1,248 @@
+name: CI/CD Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      seed_database:
+        description: 'Run php artisan db:seed --force after migrations (use for initial setup only)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Test & Verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laravel-app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, json, bcmath, pdo_mysql, pdo_sqlite
+          tools: composer:v2
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: laravel-app/vendor
+          key: ${{ runner.os }}-composer-dev-${{ hashFiles('laravel-app/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-dev-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: PHP syntax lint
+        run: find app config database routes tests -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Run test suite
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+          php artisan test
+
+  deploy:
+    name: Deploy to travelersdiarytours.com
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    env:
+      DOMAIN: travelersdiarytours.com
+      SEED_DATABASE: ${{ inputs.seed_database || false }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, json, bcmath, pdo_mysql
+          tools: composer:v2
+
+      - name: Cache production Composer packages
+        uses: actions/cache@v4
+        with:
+          path: laravel-app/vendor
+          key: ${{ runner.os }}-composer-prod-${{ hashFiles('laravel-app/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-prod-
+
+      - name: Install production Composer dependencies
+        working-directory: laravel-app
+        run: composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+      - name: Prepare public_html bundle
+        run: |
+          rm -rf "$RUNNER_TEMP/public_html"
+          cp -R laravel-app/public "$RUNNER_TEMP/public_html"
+          php << 'PHP'
+          <?php
+          $file = getenv('RUNNER_TEMP') . '/public_html/index.php';
+          $code = file_get_contents($file);
+          $code = str_replace(
+              [
+                  "__DIR__.'/../storage/framework/maintenance.php'",
+                  "__DIR__.'/../vendor/autoload.php'",
+                  "__DIR__.'/../bootstrap/app.php'",
+              ],
+              [
+                  "__DIR__.'/../laravel-app/storage/framework/maintenance.php'",
+                  "__DIR__.'/../laravel-app/vendor/autoload.php'",
+                  "__DIR__.'/../laravel-app/bootstrap/app.php'",
+              ],
+              $code
+          );
+          $needle = "\$app = require_once __DIR__.'/../laravel-app/bootstrap/app.php';";
+          if (strpos($code, $needle) === false) {
+              fwrite(STDERR, "Failed to patch index.php bootstrap path\n");
+              exit(1);
+          }
+          $code = str_replace(
+              $needle,
+              $needle . "\n\$app->bind('path.public', function () { return __DIR__; });",
+              $code
+          );
+          file_put_contents($file, $code);
+          PHP
+          php -l "$RUNNER_TEMP/public_html/index.php"
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.HOSTINGER_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Prepare server directories and enable maintenance mode
+        run: |
+          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }} -o StrictHostKeyChecking=accept-new"
+          APP_DIR="/home/${{ secrets.HOSTINGER_SSH_USER }}/domains/${DOMAIN}/laravel-app"
+          PUB_DIR="/home/${{ secrets.HOSTINGER_SSH_USER }}/domains/${DOMAIN}/public_html"
+          ssh $SSH_OPTS "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}" bash -s << EOF
+            set -e
+            mkdir -p "${APP_DIR}/storage/app/public" \
+                     "${APP_DIR}/storage/framework/cache/data" \
+                     "${APP_DIR}/storage/framework/sessions" \
+                     "${APP_DIR}/storage/framework/testing" \
+                     "${APP_DIR}/storage/framework/views" \
+                     "${APP_DIR}/storage/logs" \
+                     "${APP_DIR}/bootstrap/cache" \
+                     "${PUB_DIR}"
+            PHP_BIN=\$(command -v /opt/alt/php83/usr/bin/php || command -v php83 || command -v php)
+            if [ -f "${APP_DIR}/artisan" ] && [ -f "${APP_DIR}/.env" ]; then
+              cd "${APP_DIR}"
+              "\$PHP_BIN" artisan down --retry=30 || true
+            fi
+          EOF
+
+      - name: Sync Laravel application files
+        run: |
+          SSH_CMD="ssh -i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }} -o StrictHostKeyChecking=accept-new"
+          APP_DIR="/home/${{ secrets.HOSTINGER_SSH_USER }}/domains/${DOMAIN}/laravel-app"
+          rsync -az --delete \
+            -e "$SSH_CMD" \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='storage/' \
+            --exclude='public/' \
+            --exclude='tests/' \
+            --exclude='node_modules/' \
+            --exclude='.git/' \
+            --exclude='bootstrap/cache/*.php' \
+            laravel-app/ "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${APP_DIR}/"
+
+      - name: Bootstrap .env if missing on server
+        env:
+          DB_PASSWORD: ${{ secrets.LARAVEL_DB_PASSWORD }}
+          ADMIN_PASSWORD: ${{ secrets.LARAVEL_ADMIN_PASSWORD }}
+        run: |
+          APP_KEY=$(php -r "echo 'base64:'.base64_encode(random_bytes(32));")
+          export APP_KEY
+          php << 'PHP'
+          <?php
+          $envContent = implode("\n", [
+              'APP_NAME="Travelers Diary"',
+              'APP_ENV=production',
+              'APP_KEY=' . getenv('APP_KEY'),
+              'APP_DEBUG=false',
+              'APP_URL=https://travelersdiarytours.com',
+              '',
+              'LOG_CHANNEL=stack',
+              'LOG_LEVEL=error',
+              '',
+              'DB_CONNECTION=mysql',
+              'DB_HOST=127.0.0.1',
+              'DB_PORT=3306',
+              'DB_DATABASE=u225713169_tdiary',
+              'DB_USERNAME=u225713169_tdiary',
+              'DB_PASSWORD=' . getenv('DB_PASSWORD'),
+              '',
+              'CACHE_DRIVER=file',
+              'FILESYSTEM_DISK=local',
+              'QUEUE_CONNECTION=sync',
+              'SESSION_DRIVER=file',
+              'SESSION_LIFETIME=120',
+              '',
+              'ADMIN_PASSWORD=' . getenv('ADMIN_PASSWORD'),
+              '',
+          ]);
+          file_put_contents(getenv('RUNNER_TEMP') . '/bootstrap.env', $envContent);
+          PHP
+          SSH_CMD="ssh -i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }} -o StrictHostKeyChecking=accept-new"
+          APP_DIR="/home/${{ secrets.HOSTINGER_SSH_USER }}/domains/${DOMAIN}/laravel-app"
+          rsync -az --ignore-existing -e "$SSH_CMD" "$RUNNER_TEMP/bootstrap.env" "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${APP_DIR}/.env"
+          rm -f "$RUNNER_TEMP/bootstrap.env"
+
+      - name: Sync public_html files
+        run: |
+          SSH_CMD="ssh -i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }} -o StrictHostKeyChecking=accept-new"
+          PUB_DIR="/home/${{ secrets.HOSTINGER_SSH_USER }}/domains/${DOMAIN}/public_html"
+          rsync -az --delete \
+            -e "$SSH_CMD" \
+            --exclude='.well-known/' \
+            --exclude='cgi-bin/' \
+            "$RUNNER_TEMP/public_html/" "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${PUB_DIR}/"
+
+      - name: Run migrations, warm caches, and exit maintenance mode
+        run: |
+          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }} -o StrictHostKeyChecking=accept-new"
+          APP_DIR="/home/${{ secrets.HOSTINGER_SSH_USER }}/domains/${DOMAIN}/laravel-app"
+          ssh $SSH_OPTS "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}" bash -s << EOF
+            set -e
+            cd "${APP_DIR}"
+            if [ ! -f .env ]; then
+              echo "ERROR: ${APP_DIR}/.env is missing. Create it before deploying."
+              exit 1
+            fi
+            chmod 600 .env
+            PHP_BIN=\$(command -v /opt/alt/php83/usr/bin/php || command -v php83 || command -v php)
+            "\$PHP_BIN" artisan migrate --force
+            if [ "${SEED_DATABASE}" = "true" ]; then
+              "\$PHP_BIN" artisan db:seed --force
+            fi
+            "\$PHP_BIN" artisan optimize:clear
+            "\$PHP_BIN" artisan config:cache
+            "\$PHP_BIN" artisan route:cache
+            "\$PHP_BIN" artisan view:cache
+            "\$PHP_BIN" artisan up
+          EOF
