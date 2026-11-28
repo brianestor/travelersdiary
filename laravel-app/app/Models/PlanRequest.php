@@ -19,19 +19,23 @@ class PlanRequest extends Model
 
     public function safariLabel(): string
     {
-        return [
+        $label = [
             'safari' => 'Normal safari',
             'kilimanjaro' => 'Mount Kilimanjaro',
             'zanzibar' => 'Zanzibar',
         ][$this->safari_type] ?? $this->safari_type;
+
+        return __($label);
     }
 
     public function stayLabel(): string
     {
-        return [
+        $label = [
             'explorer' => 'Explorer',
             'signature' => 'Signature',
             'premium' => 'Premium',
         ][$this->accommodation] ?? $this->accommodation;
+
+        return __($label);
     }
 }

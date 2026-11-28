@@ -57,8 +57,6 @@ class Media
         $map = [
             'serengeti-migration' => 'cheetah',
             'ngorongoro-tarangire' => 'rhino',
-            'mara-classic' => 'lion',
-            'amboseli-tsavo' => 'elephant',
         ];
 
         return self::all()[$map[$slug] ?? 'elephant'];

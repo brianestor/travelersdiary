@@ -22,7 +22,7 @@ class Reservations
         return DB::transaction(function () use ($input) {
             $tour = Tour::where('slug', $this->text($input['tour'] ?? $input['tourSlug'] ?? null, 80))->first();
             if (! $tour) {
-                throw new ReservationException('Choose a safari from the list.');
+                throw new ReservationException(__('Choose a safari from the list.'));
             }
 
             $adults = $this->int($input['adults'] ?? null);
@@ -38,14 +38,14 @@ class Reservations
             $notes = $this->text($input['notes'] ?? null, 800);
 
             if (strlen($leadName) < 2) {
-                throw new ReservationException('Add the name of the lead traveler.');
+                throw new ReservationException(__('Add the name of the lead traveler.'));
             }
             if (! preg_match('/^[^\s@]+@[^\s@]+\.[^\s@]+$/', $email)) {
-                throw new ReservationException('Add an email the desk can reply to.');
+                throw new ReservationException(__('Add an email the desk can reply to.'));
             }
             $digits = preg_replace('/\D/', '', $phone);
             if (strlen($digits) < 7 || strlen($digits) > 15) {
-                throw new ReservationException('Add a phone number with at least seven digits.');
+                throw new ReservationException(__('Add a phone number with at least seven digits.'));
             }
 
             $departure = Departure::where('id', $this->text($input['departure'] ?? $input['departureId'] ?? null, 80))
@@ -53,12 +53,12 @@ class Reservations
                 ->lockForUpdate()
                 ->first();
             if (! $departure) {
-                throw new ReservationException('That departure is no longer listed.');
+                throw new ReservationException(__('That departure is no longer listed.'));
             }
 
             $size = $adults + $children;
             if ($size > $departure->seatsLeft()) {
-                throw new ReservationException('This departure does not have enough seats left for that party.');
+                throw new ReservationException(__('This departure does not have enough seats left for that party.'));
             }
 
             $departure->seats_taken += $size;
@@ -85,26 +85,26 @@ class Reservations
         $date = DateTime::createFromFormat('Y-m-d', $start);
         $today = new DateTime('today');
         if (! $date || $date->format('Y-m-d') !== $start || $date < $today) {
-            throw new ReservationException('Choose a start day that has not already passed.');
+            throw new ReservationException(__('Choose a start day that has not already passed.'));
         }
 
         $days = $this->int($input['duration_days'] ?? null);
         if ($days < 1 || $days > 21) {
-            throw new ReservationException('Choose a trip from 1 to 21 days.');
+            throw new ReservationException(__('Choose a trip from 1 to 21 days.'));
         }
 
         $safari = $this->text($input['safari_type'] ?? null, 40);
         if (! in_array($safari, ['safari', 'kilimanjaro', 'zanzibar'], true)) {
-            throw new ReservationException('Choose a normal safari, Mount Kilimanjaro, or Zanzibar.');
+            throw new ReservationException(__('Choose a normal safari, Mount Kilimanjaro, or Zanzibar.'));
         }
 
         $adults = $this->int($input['adults'] ?? null);
         $children = $this->int($input['children'] ?? null);
         if ($adults < 1 || $adults > 12) {
-            throw new ReservationException('Include at least one adult, and no more than twelve.');
+            throw new ReservationException(__('Include at least one adult, and no more than twelve.'));
         }
         if ($children < 0 || $children > 8) {
-            throw new ReservationException('Children must be between zero and eight.');
+            throw new ReservationException(__('Children must be between zero and eight.'));
         }
 
         $ages = $input['child_ages'] ?? [];
@@ -113,25 +113,25 @@ class Reservations
         }
         $ages = array_values($ages);
         if (count($ages) !== $children) {
-            throw new ReservationException('Add an age for each child.');
+            throw new ReservationException(__('Add an age for each child.'));
         }
         $cleanAges = [];
         foreach ($ages as $age) {
             $number = $this->int($age);
             if ($number < 0 || $number > 17) {
-                throw new ReservationException('Each child\'s age must be between 0 and 17.');
+                throw new ReservationException(__('Each child\'s age must be between 0 and 17.'));
             }
             $cleanAges[] = $number;
         }
 
         $budget = $this->int($input['budget'] ?? null);
         if ($budget < 150 || $budget > 5000) {
-            throw new ReservationException('Set a budget between $150 and $5,000 per person.');
+            throw new ReservationException(__('Set a budget between $150 and $5,000 per person.'));
         }
 
         $stay = $this->text($input['accommodation'] ?? null, 40);
         if (! in_array($stay, ['explorer', 'signature', 'premium'], true)) {
-            throw new ReservationException('Choose Explorer, Signature, or Premium.');
+            throw new ReservationException(__('Choose Explorer, Signature, or Premium.'));
         }
 
         $first = $this->text($input['first_name'] ?? null, 80);
@@ -140,25 +140,25 @@ class Reservations
         $code = $this->text($input['country_code'] ?? null, 8);
         $phone = $this->text($input['phone'] ?? null, 30);
         if (strlen($first) < 2) {
-            throw new ReservationException('Add a first name.');
+            throw new ReservationException(__('Add a first name.'));
         }
         if (strlen($last) < 2) {
-            throw new ReservationException('Add a last name.');
+            throw new ReservationException(__('Add a last name.'));
         }
         if (! preg_match('/^[^\s@]+@[^\s@]+\.[^\s@]+$/', $email)) {
-            throw new ReservationException('Add an email the desk can reply to.');
+            throw new ReservationException(__('Add an email the desk can reply to.'));
         }
         if (! in_array($code, ['+255', '+254', '+256', '+1', '+44'], true)) {
-            throw new ReservationException('Choose a country code.');
+            throw new ReservationException(__('Choose a country code.'));
         }
         $digits = preg_replace('/\D/', '', $phone);
         if (strlen($digits) < 7 || strlen($digits) > 15) {
-            throw new ReservationException('Add a phone number with at least seven digits.');
+            throw new ReservationException(__('Add a phone number with at least seven digits.'));
         }
 
         $method = $this->text($input['contact_method'] ?? null, 20);
         if (! in_array($method, ['email', 'whatsapp'], true)) {
-            throw new ReservationException('Choose email or WhatsApp.');
+            throw new ReservationException(__('Choose email or WhatsApp.'));
         }
 
         return PlanRequest::create([
@@ -188,13 +188,13 @@ class Reservations
         $message = $this->text($input['message'] ?? null, 2000);
 
         if (strlen($name) < 2) {
-            throw new ReservationException('Add your name.');
+            throw new ReservationException(__('Add your name.'));
         }
         if (! preg_match('/^[^\s@]+@[^\s@]+\.[^\s@]+$/', $email)) {
-            throw new ReservationException('Add an email the desk can reply to.');
+            throw new ReservationException(__('Add an email the desk can reply to.'));
         }
         if (strlen($message) < 8) {
-            throw new ReservationException('Write a short note so the desk knows how to help.');
+            throw new ReservationException(__('Write a short note so the desk knows how to help.'));
         }
 
         return Message::create([
@@ -207,13 +207,13 @@ class Reservations
     private function partyError(int $adults, int $children): ?string
     {
         if ($adults < 1 || $adults > 8) {
-            return 'Include at least one adult, and no more than eight.';
+            return __('Include at least one adult, and no more than eight.');
         }
         if ($children < 0 || $children > 6) {
-            return 'Children must be between zero and six.';
+            return __('Children must be between zero and six.');
         }
         if ($adults + $children > 8) {
-            return 'A single reservation can hold up to eight travelers.';
+            return __('A single reservation can hold up to eight travelers.');
         }
 
         return null;

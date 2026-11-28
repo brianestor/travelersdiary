@@ -1,12 +1,12 @@
 @php
     $items = [
-        ['route' => 'plan', 'label' => 'Plan', 'match' => 'plan*'],
-        ['route' => 'safaris', 'label' => 'Popular', 'match' => 'safaris*'],
-        ['route' => 'diary', 'label' => 'Diary', 'match' => 'diary'],
-        ['route' => 'contact', 'label' => 'Contacts', 'match' => 'contact'],
+        ['route' => 'plan', 'label' => __('Plan'), 'match' => 'plan*'],
+        ['route' => 'safaris', 'label' => __('Popular'), 'match' => 'safaris*'],
+        ['route' => 'diary', 'label' => __('Diary'), 'match' => 'diary'],
+        ['route' => 'contact', 'label' => __('Contacts'), 'match' => 'contact'],
     ];
 @endphp
-<nav aria-label="Pages" class="fixed inset-x-4 bottom-3 z-40 rounded-3xl border border-line bg-night/30 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur-md">
+<nav aria-label="{{ __('Pages') }}" class="fixed inset-x-4 bottom-3 z-40 rounded-3xl border border-line bg-night/30 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur-md">
     <ul class="mx-auto grid max-w-lg grid-cols-4">
         @foreach($items as $item)
             @php $active = request()->is($item['match']); @endphp

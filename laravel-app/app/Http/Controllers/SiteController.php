@@ -13,10 +13,30 @@ use Illuminate\Http\Request;
 
 class SiteController extends Controller
 {
+    public function locale(Request $request, string $locale)
+    {
+        abort_unless(in_array($locale, ['en', 'fr', 'es', 'de'], true), 404);
+        $request->session()->put('locale', $locale);
+        $previous = url()->previous();
+        if ($previous === '' || str_contains($previous, '/locale/')) {
+            return redirect()->route('home');
+        }
+
+        return redirect()->to($previous);
+    }
+
     public function home()
     {
         return view('home', [
-            'description' => 'Safari journeys written by nature and lived by you. Choose a departure, send your details, and the desk confirms the reservation.',
+            'description' => __('Safari journeys written by nature and lived by you. Choose a departure, send your details, and the desk confirms the reservation.'),
+        ]);
+    }
+
+    public function story()
+    {
+        return view('story', [
+            'title' => __('Our story'),
+            'description' => __('Travelers Diary is based only in Tanzania. Safaris run only here, including Zanzibar, from Kilimanjaro to the northern, southern, and middle circuits. Each reservation is confirmed by the desk. Nothing on this site is charged.'),
         ]);
     }
 
@@ -25,8 +45,8 @@ class SiteController extends Controller
         $tours = Tour::with(['departures', 'days'])->orderBy('id')->get();
 
         return view('safaris.index', [
-            'title' => 'Popular safari',
-            'description' => 'Fixed-date safaris in Tanzania and Kenya, with seats held when you request a reservation.',
+            'title' => __('Popular safari'),
+            'description' => __('Fixed-date safaris in Tanzania, including Zanzibar, with seats held when you request a reservation.'),
             'tours' => $tours,
         ]);
     }
@@ -47,8 +67,8 @@ class SiteController extends Controller
         $entries = DiaryEntry::with('tour')->orderBy('id')->get();
 
         return view('diary', [
-            'title' => 'Diary',
-            'description' => 'Field notes from Travelers Diary safaris, each one tied to a route you can reserve.',
+            'title' => __('Diary'),
+            'description' => __('Field notes from Travelers Diary safaris, each one tied to a route you can reserve.'),
             'entries' => $entries,
         ]);
     }
@@ -56,8 +76,8 @@ class SiteController extends Controller
     public function plan()
     {
         return view('plan', [
-            'title' => 'Plan a safari',
-            'description' => 'Plan a safari one step at a time. The desk confirms the request. Nothing is charged.',
+            'title' => __('Plan a safari'),
+            'description' => __('Plan a safari one step at a time. The desk confirms the request. Nothing is charged.'),
         ]);
     }
 
@@ -77,7 +97,7 @@ class SiteController extends Controller
         $plan = PlanRequest::where('reference', $ref)->firstOrFail();
 
         return view('plan-confirmation', [
-            'title' => 'Safari plan requested',
+            'title' => __('Safari plan requested'),
             'plan' => $plan,
         ]);
     }
@@ -85,8 +105,8 @@ class SiteController extends Controller
     public function contact()
     {
         return view('contact', [
-            'title' => 'Contacts',
-            'description' => 'Write to the Travelers Diary desk. Questions live here; reservations start on Plan a safari.',
+            'title' => __('Contacts'),
+            'description' => __('Write to the Travelers Diary desk. Questions live here; reservations start on Plan a safari.'),
         ]);
     }
 
@@ -116,7 +136,7 @@ class SiteController extends Controller
         $partyReady = $adults >= 1 && $children >= 0 && $adults + $children <= 8 && $adults <= 8 && $children <= 6;
 
         return view('book', [
-            'title' => 'Request a reservation',
+            'title' => __('Request a reservation'),
             'tour' => $tour,
             'departure' => $departure,
             'adults' => $adults,
@@ -143,7 +163,7 @@ class SiteController extends Controller
         $booking = Booking::with(['tour', 'departure'])->where('reference', $ref)->firstOrFail();
 
         return view('confirmation', [
-            'title' => 'Reservation requested',
+            'title' => __('Reservation requested'),
             'booking' => $booking,
         ]);
     }

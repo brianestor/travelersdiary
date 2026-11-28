@@ -4,6 +4,8 @@ use App\Http\Controllers\SiteController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [SiteController::class, 'home'])->name('home');
+Route::get('/our-story', [SiteController::class, 'story'])->name('story');
+Route::get('/locale/{locale}', [SiteController::class, 'locale'])->whereIn('locale', ['en', 'fr', 'es', 'de'])->name('locale');
 Route::get('/safaris', [SiteController::class, 'safaris'])->name('safaris');
 Route::get('/safaris/{slug}', [SiteController::class, 'safari'])->name('safari');
 Route::get('/diary', [SiteController::class, 'diary'])->name('diary');
@@ -21,4 +23,4 @@ Route::post('/admin/logout', [SiteController::class, 'logout'])->name('admin.log
 
 Route::redirect('/tours', '/safaris');
 Route::get('/tours/{slug}', fn (string $slug) => redirect('/safaris/'.$slug));
-Route::redirect('/about', '/');
+Route::redirect('/about', '/our-story');
