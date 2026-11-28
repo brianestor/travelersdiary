@@ -8,6 +8,24 @@
             }
         } catch (e) {}
     </script>
+    <style>
+        .site-header {
+            display: grid !important;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            column-gap: 0.75rem;
+        }
+        .site-header-tools {
+            display: flex !important;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.35rem;
+        }
+        html:not([data-theme="light"]) .icon-moon,
+        html[data-theme="light"] .icon-sun {
+            display: none !important;
+        }
+    </style>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ isset($title) ? $title.' · Travelers Diary' : 'Travelers Diary' }}</title>
@@ -41,7 +59,7 @@
             },
         };
     </script>
-    <link rel="stylesheet" href="{{ asset('css/site.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ filemtime(public_path('css/site.css')) }}">
 </head>
 <body class="flex min-h-full flex-col antialiased">
     <a href="#content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-gold focus:px-4 focus:py-2 focus:text-night">{{ __('Skip to content') }}</a>
@@ -64,15 +82,22 @@
             });
         }
         var themeButton = document.getElementById('theme-toggle');
-        if (themeButton) {
-            var light = document.documentElement.getAttribute('data-theme') === 'light';
+        function syncThemeIcons(light) {
+            if (!themeButton) return;
+            var sun = themeButton.querySelector('.icon-sun');
+            var moon = themeButton.querySelector('.icon-moon');
+            if (sun) sun.hidden = light;
+            if (moon) moon.hidden = !light;
             themeButton.setAttribute('aria-pressed', light ? 'true' : 'false');
+        }
+        if (themeButton) {
+            syncThemeIcons(document.documentElement.getAttribute('data-theme') === 'light');
             themeButton.addEventListener('click', function () {
                 var nextLight = document.documentElement.getAttribute('data-theme') !== 'light';
                 if (nextLight) document.documentElement.setAttribute('data-theme', 'light');
                 else document.documentElement.removeAttribute('data-theme');
                 try { localStorage.setItem('td-theme', nextLight ? 'light' : 'dark'); } catch (e) {}
-                themeButton.setAttribute('aria-pressed', nextLight ? 'true' : 'false');
+                syncThemeIcons(nextLight);
             });
         }
     </script>
